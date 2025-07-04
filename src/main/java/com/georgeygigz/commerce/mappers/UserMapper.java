@@ -6,6 +6,7 @@ import com.georgeygigz.commerce.dtos.UserDto;
 import com.georgeygigz.commerce.entities.User;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.Mappings;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
