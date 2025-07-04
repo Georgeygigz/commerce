@@ -2,6 +2,7 @@ package com.georgeygigz.commerce.controllers;
 
 
 import com.georgeygigz.commerce.dtos.RegisterUserRequest;
+import com.georgeygigz.commerce.dtos.UpdateUserRequest;
 import com.georgeygigz.commerce.dtos.UserDto;
 import com.georgeygigz.commerce.mappers.UserMapper;
 import com.georgeygigz.commerce.repositories.UserRepository;
@@ -54,7 +55,29 @@ public class UserController {
         var uri = uriBuilder.path("/users/{id}").buildAndExpand(userDto.getId()).toUri();
         return ResponseEntity.created(uri).body(userDto);
 
+    }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<UserDto>  updateUser(
+            @PathVariable Long id,
+            @RequestBody UpdateUserRequest request
+    ){
+        var user = userRepository.findById(id).orElse(null);
+        if (user == null)
+            return ResponseEntity.notFound().build();
 
+        userMapper.update(request, user);
+        userRepository.save(user);
+        return ResponseEntity.ok(userMapper.toDto(user));
+    }
+
+    @DeleteMapping("/{id}")
+    public  ResponseEntity<Void> deleteUser(@PathVariable Long id){
+        var user = userRepository.findById(id).orElse(null);
+        if (user == null)
+            return ResponseEntity.notFound().build();
+        userRepository.delete(user);
+        return ResponseEntity.noContent().build();
     }
 }
+
