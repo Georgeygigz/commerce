@@ -1,18 +1,24 @@
 package com.georgeygigz.commerce.controllers;
 
 
+import com.georgeygigz.commerce.dtos.ChangePasswordRequest;
 import com.georgeygigz.commerce.dtos.RegisterUserRequest;
 import com.georgeygigz.commerce.dtos.UpdateUserRequest;
 import com.georgeygigz.commerce.dtos.UserDto;
 import com.georgeygigz.commerce.mappers.UserMapper;
 import com.georgeygigz.commerce.repositories.UserRepository;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -43,11 +49,16 @@ public class UserController {
         return ResponseEntity.ok(userMapper.toDto(user));
     }
 
+
     @PostMapping("/")
-    public ResponseEntity<UserDto> createUser(
-            @RequestBody RegisterUserRequest request,
+    public ResponseEntity<?> registerUser(
+            @Valid @RequestBody RegisterUserRequest request,
             UriComponentsBuilder uriBuilder
     ) {
+        if(userRepository.existsByEmail(request.getEmail()))
+            return ResponseEntity.badRequest().body(Map.of("email", "email is already in use"));
+
+
         var user = userMapper.toEntity(request);
         userRepository.save(user);
         var userDto = userMapper.toDto(user);
@@ -79,5 +90,28 @@ public class UserController {
         userRepository.delete(user);
         return ResponseEntity.noContent().build();
     }
+
+    @PutMapping("/{id}/change-password")
+    public ResponseEntity<Void> updatePassword(
+            @PathVariable Long id,
+            @RequestBody ChangePasswordRequest request
+    ){
+        var user = userRepository.findById(id).orElse(null);
+        if(user == null)
+            return ResponseEntity.notFound().build();
+        if (!user.getPassword().equals(request.getOldPassword()))
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+
+        user.setPassword(request.getNewPassword());
+        userRepository.save(user);
+        return ResponseEntity.noContent().build();
+    }
+
+
+
+
+
+
+
 }
 
