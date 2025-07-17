@@ -3,17 +3,21 @@ package com.georgeygigz.commerce.controllers;
 import com.georgeygigz.commerce.dtos.AddItemToCartRequest;
 import com.georgeygigz.commerce.dtos.CartDto;
 import com.georgeygigz.commerce.dtos.CartItemDto;
+import com.georgeygigz.commerce.dtos.UpdateCartItemRequest;
 import com.georgeygigz.commerce.entities.Cart;
 import com.georgeygigz.commerce.entities.CartItem;
 import com.georgeygigz.commerce.mappers.CartMapper;
 import com.georgeygigz.commerce.repositories.CartRepository;
 import com.georgeygigz.commerce.repositories.ProductRepository;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
+import lombok.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.Map;
 import java.util.UUID;
 
 @AllArgsConstructor
@@ -76,6 +80,36 @@ public class CartController {
         if (cart ==null)
             return ResponseEntity.notFound().build();
         return ResponseEntity.ok(cartMapper.toDto(cart));
+
+    }
+
+    @PutMapping("/{cartId}/items/{productID}")
+    public ResponseEntity<?> updateItem(
+            @PathVariable("cartId") UUID cartId,
+            @PathVariable("productID") Long productId,
+            @Valid @RequestBody UpdateCartItemRequest request
+    ){
+
+        var cart = cartRepository.getCartWithItems(cartId).orElse(null);
+        if(cart ==null)
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    Map.of("error", "Cart was not found")
+            );
+
+        var cartItem = cart.getItems().stream()
+                .filter(item -> item.getProduct().getId().equals(productId))
+                .findFirst()
+                .orElse(null);
+
+        if (cartItem == null)
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                    Map.of("error", "Product was not found in the cart")
+            );
+        cartItem.setQuantity(cartItem.getQuantity() +1);
+        cartRepository.save(cart);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(cartMapper.toDto(cart));
+
 
     }
 
