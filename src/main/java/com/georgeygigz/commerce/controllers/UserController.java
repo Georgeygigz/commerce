@@ -1,10 +1,7 @@
 package com.georgeygigz.commerce.controllers;
 
 
-import com.georgeygigz.commerce.dtos.ChangePasswordRequest;
-import com.georgeygigz.commerce.dtos.RegisterUserRequest;
-import com.georgeygigz.commerce.dtos.UpdateUserRequest;
-import com.georgeygigz.commerce.dtos.UserDto;
+import com.georgeygigz.commerce.dtos.*;
 import com.georgeygigz.commerce.exceptions.EmailExistException;
 import com.georgeygigz.commerce.exceptions.UnauthorizedException;
 import com.georgeygigz.commerce.exceptions.UserNotFoundException;
@@ -13,9 +10,9 @@ import com.georgeygigz.commerce.repositories.UserRepository;
 import com.georgeygigz.commerce.service.UserService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -28,9 +25,10 @@ import java.util.Set;
 @RequestMapping("/users")
 public class UserController {
 
+    private final UserService userService;
     private final UserRepository userRepository;
     private final UserMapper userMapper;
-    private final UserService userService;
+    private final PasswordEncoder passwordEncoder;
 
     @GetMapping("/")
     public Iterable<UserDto> getAllUsers(@RequestParam(required = false, defaultValue = "", name="sort") String sort) {
@@ -53,9 +51,13 @@ public class UserController {
             UriComponentsBuilder uriBuilder
     ) {
 
-        var userDto = userService.registerUser(request);
-        var uri = uriBuilder.path("/users/{id}").buildAndExpand(userDto.getId()).toUri();
-        return ResponseEntity.created(uri).body(userDto);
+        if(userRepository.existsByEmail(request.getEmail()))
+            throw new EmailExistException();
+        var user = userMapper.toEntity(request);
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        userRepository.save(user);
+        var uri = uriBuilder.path("/users/{id}").buildAndExpand(user.getId()).toUri();
+        return ResponseEntity.created(uri).body(userMapper.toDto(user));
 
     }
 
@@ -82,6 +84,7 @@ public class UserController {
         userService.updatePassword(request,userId);
         return ResponseEntity.noContent().build();
     }
+
 
     @ExceptionHandler(EmailExistException.class)
     public ResponseEntity<Map<String, String>> handleEmailExist(){
