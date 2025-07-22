@@ -5,8 +5,12 @@ import com.georgeygigz.commerce.dtos.ChangePasswordRequest;
 import com.georgeygigz.commerce.dtos.RegisterUserRequest;
 import com.georgeygigz.commerce.dtos.UpdateUserRequest;
 import com.georgeygigz.commerce.dtos.UserDto;
+import com.georgeygigz.commerce.exceptions.EmailExistException;
+import com.georgeygigz.commerce.exceptions.UnauthorizedException;
+import com.georgeygigz.commerce.exceptions.UserNotFoundException;
 import com.georgeygigz.commerce.mappers.UserMapper;
 import com.georgeygigz.commerce.repositories.UserRepository;
+import com.georgeygigz.commerce.service.UserService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Sort;
@@ -26,25 +30,20 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final UserService userService;
 
     @GetMapping("/")
     public Iterable<UserDto> getAllUsers(@RequestParam(required = false, defaultValue = "", name="sort") String sort) {
         if (!Set.of("name", "email").contains(sort))
             sort = "name";
 
-        return userRepository.findAll(Sort.by(sort))
-                .stream()
-                .map(userMapper::toDto)
-                .toList();
+        return userService.getAllUsers(sort);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UserDto>  getUser(@PathVariable Long id) {
-        var user = userRepository.findById(id).orElse(null);
-        if (user == null){
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(userMapper.toDto(user));
+    public ResponseEntity<UserDto>  getUser(@PathVariable Long userId) {
+        var userDto = userService.getUser(userId);
+        return ResponseEntity.ok(userDto);
     }
 
 
@@ -53,63 +52,51 @@ public class UserController {
             @Valid @RequestBody RegisterUserRequest request,
             UriComponentsBuilder uriBuilder
     ) {
-        if(userRepository.existsByEmail(request.getEmail()))
-            return ResponseEntity.badRequest().body(Map.of("email", "email is already in use"));
 
-
-        var user = userMapper.toEntity(request);
-        userRepository.save(user);
-        var userDto = userMapper.toDto(user);
-
+        var userDto = userService.registerUser(request);
         var uri = uriBuilder.path("/users/{id}").buildAndExpand(userDto.getId()).toUri();
         return ResponseEntity.created(uri).body(userDto);
 
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{userId}")
     public ResponseEntity<UserDto>  updateUser(
-            @PathVariable Long id,
+            @PathVariable Long userId,
             @RequestBody UpdateUserRequest request
     ){
-        var user = userRepository.findById(id).orElse(null);
-        if (user == null)
-            return ResponseEntity.notFound().build();
-
-        userMapper.update(request, user);
-        userRepository.save(user);
-        return ResponseEntity.ok(userMapper.toDto(user));
+        var user = userService.updateUser(request, userId);
+        return ResponseEntity.ok(user);
     }
 
-    @DeleteMapping("/{id}")
-    public  ResponseEntity<Void> deleteUser(@PathVariable Long id){
-        var user = userRepository.findById(id).orElse(null);
-        if (user == null)
-            return ResponseEntity.notFound().build();
-        userRepository.delete(user);
+    @DeleteMapping("/{userId}")
+    public  ResponseEntity<Void> deleteUser(@PathVariable Long userId){
+
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/{id}/change-password")
+    @PutMapping("/{userId}/change-password")
     public ResponseEntity<Void> updatePassword(
-            @PathVariable Long id,
+            @PathVariable Long userId,
             @RequestBody ChangePasswordRequest request
     ){
-        var user = userRepository.findById(id).orElse(null);
-        if(user == null)
-            return ResponseEntity.notFound().build();
-        if (!user.getPassword().equals(request.getOldPassword()))
-            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
-
-        user.setPassword(request.getNewPassword());
-        userRepository.save(user);
+        userService.updatePassword(request,userId);
         return ResponseEntity.noContent().build();
     }
 
+    @ExceptionHandler(EmailExistException.class)
+    public ResponseEntity<Map<String, String>> handleEmailExist(){
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Email already in use"));
+    }
 
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleUserNotFound(){
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "User does not exist"));
+    }
 
-
-
-
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<Map<String, String>> handleUnauthorized(){
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+    }
 
 }
 
