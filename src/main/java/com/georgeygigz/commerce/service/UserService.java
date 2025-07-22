@@ -1,10 +1,6 @@
 package com.georgeygigz.commerce.service;
 
-import com.georgeygigz.commerce.dtos.ChangePasswordRequest;
-import com.georgeygigz.commerce.dtos.RegisterUserRequest;
-import com.georgeygigz.commerce.dtos.UpdateUserRequest;
-import com.georgeygigz.commerce.dtos.UserDto;
-import com.georgeygigz.commerce.entities.User;
+import com.georgeygigz.commerce.dtos.*;
 import com.georgeygigz.commerce.exceptions.EmailExistException;
 import com.georgeygigz.commerce.exceptions.UnauthorizedException;
 import com.georgeygigz.commerce.exceptions.UserNotFoundException;
@@ -12,18 +8,27 @@ import com.georgeygigz.commerce.mappers.UserMapper;
 import com.georgeygigz.commerce.repositories.UserRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @AllArgsConstructor
-public class UserService {
+public class UserService implements UserDetailsService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException{
+        var user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        return new User(user.getEmail(), user.getPassword(), Collections.emptyList());
+
+    }
 
     public List<UserDto> getAllUsers(String sort){
         return userRepository.findAll(Sort.by(sort))
@@ -41,13 +46,7 @@ public class UserService {
         return userMapper.toDto(user);
     }
 
-    public UserDto registerUser(RegisterUserRequest request){
-        if(userRepository.existsByEmail(request.getEmail()))
-            throw new EmailExistException();
-        var user = userMapper.toEntity(request);
-        userRepository.save(user);
-        return userMapper.toDto(user);
-    }
+
 
     public UserDto updateUser(UpdateUserRequest request, Long userId){
         var user = userRepository.findById(userId).orElse(null);
@@ -70,5 +69,6 @@ public class UserService {
         userRepository.save(user);
 
     }
+
 
 }
